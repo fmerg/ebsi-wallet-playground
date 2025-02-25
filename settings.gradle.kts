@@ -5,4 +5,4 @@
  * For more detailed information on multi-project builds, please refer to https://docs.gradle.org/8.12.1/userguide/multi_project_builds.html in the Gradle documentation.
  */
 
-rootProject.name = "vc-playground"
+rootProject.name = "ebsi-wallet-playground"
