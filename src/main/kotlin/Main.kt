@@ -1,6 +1,6 @@
-import org.slf4j.LoggerFactory
+import kotlinx.serialization.Serializable
+
 
 fun main() {
-    val logger = LoggerFactory.getLogger("HelloWorldApp")
-    logger.info("Hello, World!")
+    println("Hello, World!")
 }
