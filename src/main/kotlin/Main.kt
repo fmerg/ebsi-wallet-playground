@@ -11,7 +11,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.Serializable
 
 
-// HTTP helpers --------------------------------------
+// HTTP helpers ---------------------------------------------------------
 
 fun createHttpClient(): HttpClient {
     // Create HTTP client with JSON configuration
@@ -32,7 +32,7 @@ suspend fun parseJsonResponse(resp: HttpResponse): JsonObject {
 }
 
 
-// Trusted execution environmen (quasi) --------------
+// Trusted execution environmen (quasi) ---------------------------------
 
 fun loadPrivateKey(): JsonObject {
     // TODO: Properly plug to wallet
@@ -49,7 +49,7 @@ fun loadPrivateKey(): JsonObject {
 }
 
 
-// EBSI Credential Flow operations (Basic API) -------
+// EBSI Credential Flow operations (Basic API) --------------------------
 
 // Global config
 val EBSI_AGENT_ADRESS = "http://localhost:3000"
@@ -245,7 +245,7 @@ suspend fun main() {
     // Received credential token
     val vcToken = "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6ZWJzaTp6d0xGZUszNzJ2NXRMSmJVNlU1eFBvWCNsbXZiOGtLOHJfVnUwRktWanlvaXJMNURDXzdoVm9UZkk3d2Z4cGtTVVFZIiwidHlwIjoiSldUIn0.eyJpYXQiOjE3NDEyNjE3NTksImV4cCI6MTg5OTAyODE1OSwianRpIjoidXJuOnV1aWQ6NzFhOTE1NTctYzZhOS00MDU4LTg2MWEtZDNhMzkyNDUyM2RiIiwic3ViIjoiZGlkOmVic2k6ejIzd2M0Q2dDOG9NWGZEZ2dDU3o0QzZCIiwiaXNzIjoiZGlkOmVic2k6endMRmVLMzcydjV0TEpiVTZVNXhQb1giLCJuYmYiOjE3NDEyNjE3NTksInZjIjp7IkBjb250ZXh0IjpbImh0dHBzOi8vd3d3LnczLm9yZy8yMDE4L2NyZWRlbnRpYWxzL3YxIl0sImlkIjoidXJuOnV1aWQ6NzFhOTE1NTctYzZhOS00MDU4LTg2MWEtZDNhMzkyNDUyM2RiIiwidHlwZSI6WyJWZXJpZmlhYmxlQ3JlZGVudGlhbCIsIlZlcmlmaWFibGVBdHRlc3RhdGlvbiJdLCJpc3N1ZXIiOiJkaWQ6ZWJzaTp6d0xGZUszNzJ2NXRMSmJVNlU1eFBvWCIsImlzc3VhbmNlRGF0ZSI6IjIwMjUtMDMtMDZUMTE6NDk6MTkuOTI0WiIsImlzc3VlZCI6IjIwMjUtMDMtMDZUMTE6NDk6MTkuOTI0WiIsInZhbGlkRnJvbSI6IjIwMjUtMDMtMDZUMTE6NDk6MTkuOTI0WiIsInZhbGlkVW50aWwiOiIyMDM1LTAzLTA2VDExOjQ5OjE5LjkyNFoiLCJleHBpcmF0aW9uRGF0ZSI6IjIwMzAtMDMtMDZUMTE6NDk6MTkuOTI0WiIsImNyZWRlbnRpYWxTdWJqZWN0Ijp7ImlkIjoiZGlkOmVic2k6ejIzd2M0Q2dDOG9NWGZEZ2dDU3o0QzZCIiwiZmlyc3ROYW1lIjoiQW1uYSIsImZhbWlseU5hbWUiOiJFbGhhZGkiLCJwZXJzb25hbElkZW50aWZpZXIiOjY2Njk5OSwiZGF0ZU9mQmlydGgiOiIxOTg4LTA3LTI2IiwiYWdlT3ZlcjE4Ijp0cnVlLCJnZW5kZXIiOiJ1bnNwZWNpZmllZCJ9LCJjcmVkZW50aWFsU2NoZW1hIjp7ImlkIjoiaHR0cHM6Ly9hcGktcGlsb3QuZWJzaS5ldS90cnVzdGVkLXNjaGVtYXMtcmVnaXN0cnkvdjMvc2NoZW1hcy96RHBXR1VCZW5tcVh6dXJza3J5OU5zazZ2cTJSOHRoaDlWU2VvUnFndW95TUQiLCJ0eXBlIjoiRnVsbEpzb25TY2hlbWFWYWxpZGF0b3IyMDIxIn19fQ.kBUZWHW9khc1al-r7t-N41a_rckXbMYh1SASWD7BMRgQ51ZJvXc-L3NnLCB3mj84GB_WVhY9s2dtQLbnoVwdMw"
 
-    // Verify credential token
+    // Verify credential token and retrieve document
     try {
         val vcDocument = verifyCredential(vcToken)
         println("\nSuccessfully verified VC token: $vcDocument")
@@ -253,10 +253,9 @@ suspend fun main() {
         println("\nCould not verify VC token: ${e.message}")
     }
 
-    // Display and store credential payload. Also save credential token for
-    // later usage
+    // Display and store document; save credential token for later usage
 
-    // Create verifiable presentation with the above saved credential token
+    // Create verifiable presentation with the above credential token
     var vpToken = ""
     val holderJwk = loadPrivateKey()
     try {

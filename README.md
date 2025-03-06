@@ -1,4 +1,4 @@
-# VC Playground in Kotlin
+# EBSI Wallet Playground in Kotlin
 
 ## Prerequiresites
 
@@ -10,7 +10,10 @@
 gradle build
 ```
 
-## Run
+## Run demo
+
+Assuming that an instance of [ebsi-agent](https://github.com/fmerg/ebsi-agent)
+is running at `localhost:3000`:
 
 ```bash
 gradle run
