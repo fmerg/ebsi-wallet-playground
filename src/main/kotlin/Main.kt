@@ -17,7 +17,7 @@ val EBSI_AGENT_ADRESS = "http://localhost:3000"
 val holderDid = "did:ebsi:z23wc4CgC8oMXfDggCSz4C6B"
 val holderKid = "lk4lfYkT9imHJKH-cCqpX_qf6FZiP5RT48uuPfJLU9Y"
 val issuerDid = "did:ebsi:zwLFeK372v5tLJbU6U5xPoX"
-val verifierDid= "did:ebsi:z24acuDqgwY9qHjzEQ1r6YvF"
+val verifierDid = "did:ebsi:z24acuDqgwY9qHjzEQ1r6YvF"
 
 
 // HTTP helpers --------------------------------------
@@ -175,8 +175,44 @@ suspend fun createVerifiablePresentation(
       }
       val data = parseJsonResponse(resp)
       if (resp.status == HttpStatusCode.OK) {
-          val vpToken = data["token"].toString()
-          return vpToken
+          val token = data["token"].toString()
+          return token.replace("\"", "").replace("'", "")
+      } else {
+          val error = data["error"].toString()
+          throw Exception(error)
+      }
+    } catch (e: Exception) {
+        throw e
+    } finally {
+        client.close()
+    }
+}
+
+
+// Presentation verification -------------------------
+
+@Serializable
+data class PresentationVerificationPayload(
+    val token: String,
+    val audience: PublicIdentity,
+)
+
+suspend fun verifyPresentation(token: String, audienceDid: String): JsonObject {
+    val client = createHttpClient()
+    val url = "$EBSI_AGENT_ADRESS/verify-vp"
+    val payload = PresentationVerificationPayload(
+        token = token,
+        audience = PublicIdentity(did = audienceDid),
+    )
+    try {
+      val resp: HttpResponse = client.get(url) {
+          contentType(ContentType.Application.Json)
+          setBody(payload)
+      }
+      val data = parseJsonResponse(resp)
+      if (resp.status == HttpStatusCode.OK) {
+          val document = data["vpDocument"] as JsonObject
+          return document
       } else {
           val error = data["error"].toString()
           throw Exception(error)
@@ -223,5 +259,14 @@ suspend fun main() {
         println("\nSuccessfully created VP token: $vpToken")
     } catch (e: Exception) {
         println("\nCould not create VP token: ${e.message}")
+    }
+
+
+    // Verify presentation
+    try {
+        val vpDocument = verifyPresentation(vpToken, verifierDid)
+        println("\nSuccessfully verified VP token: $vpDocument")
+    } catch (e: Exception) {
+        println("\nCould not verify VP token: ${e.message}")
     }
 }
