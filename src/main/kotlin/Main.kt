@@ -13,6 +13,12 @@ import kotlinx.serialization.Serializable
 // Global config
 val EBSI_AGENT_ADRESS = "http://localhost:3000"
 
+// Use case config
+val holderDid = "did:ebsi:z23wc4CgC8oMXfDggCSz4C6B"
+val holderKid = "lk4lfYkT9imHJKH-cCqpX_qf6FZiP5RT48uuPfJLU9Y"
+val issuerDid = "did:ebsi:zwLFeK372v5tLJbU6U5xPoX"
+val verifierDid= "did:ebsi:z24acuDqgwY9qHjzEQ1r6YvF"
+
 
 // HTTP helpers --------------------------------------
 
@@ -32,6 +38,23 @@ fun createHttpClient(): HttpClient {
 suspend fun parseJsonResponse(resp: HttpResponse): JsonObject {
     val body = resp.bodyAsText()
     return Json.parseToJsonElement(body) as JsonObject
+}
+
+
+// PKI -----------------------------------------------
+
+fun loadPrivateKey(): JsonObject {
+    // TODO: Properly plug to wallet
+    val jwkString = """
+        {
+            "kty": "EC",
+            "crv": "secp256k1",
+            "x": "Wx21XTYt9Z7nZto9_-C0YcZYEAcZNDiV8VpPtWOlDIU",
+            "y": "MmmrDYX7WuwI0B8lQt9Gjb8M-o8sdPvRBMQyS2kT8gc",
+            "d": "-kUhyUS_wzwewAylJyWy6VKy2aWa1NhjnXvY3rZQDeQ"
+        }
+    """.trimIndent()
+    return Json.parseToJsonElement(jwkString) as JsonObject
 }
 
 
@@ -101,8 +124,72 @@ suspend fun verifyCredential(token: String): JsonObject {
     }
 }
 
-suspend fun main() {
 
+// Presentation creation ---------------------------
+
+@Serializable
+data class LocalIdentity(
+    val did: String,
+    val kid: String,
+    val jwk: JsonObject,
+)
+@Serializable
+data class PublicIdentity(
+    val did: String,
+    val kid: String? = null,
+)
+
+@Serializable
+data class VerifiablePresentationPayload(
+    val signer: LocalIdentity,
+    val holder: PublicIdentity,
+    val audience: PublicIdentity,
+    val credentials: List<String>,
+)
+
+
+suspend fun createVerifiablePresentation(
+    signerDid: String,
+    signerKid: String,
+    signerJwk: JsonObject,
+    holderDid: String,
+    audienceDid: String,
+    credentials: List<String>,
+): String {
+    val client = createHttpClient()
+    val url = "$EBSI_AGENT_ADRESS/issue-vp"
+    val payload = VerifiablePresentationPayload(
+        signer = LocalIdentity(
+            did = signerDid,
+            kid = signerKid,
+            jwk = signerJwk,
+        ),
+        holder = PublicIdentity(did = holderDid),
+        audience = PublicIdentity(did = audienceDid),
+        credentials = credentials,
+    )
+    try {
+      val resp: HttpResponse = client.get(url) {
+          contentType(ContentType.Application.Json)
+          setBody(payload)
+      }
+      val data = parseJsonResponse(resp)
+      if (resp.status == HttpStatusCode.OK) {
+          val vpToken = data["token"].toString()
+          return vpToken
+      } else {
+          val error = data["error"].toString()
+          throw Exception(error)
+      }
+    } catch (e: Exception) {
+        throw e
+    } finally {
+        client.close()
+    }
+}
+
+
+suspend fun main() {
     // DID resolution
     val someDid = "did:ebsi:zwLFeK372v5tLJbU6U5xPoX"
     try {
@@ -119,5 +206,22 @@ suspend fun main() {
         println("\nSuccessfully verified VC token: $document")
     } catch (e: Exception) {
         println("\nCould not verify VC token: ${e.message}")
+    }
+
+    // Create verifiable presentation
+    var vpToken = ""
+    val holderJwk = loadPrivateKey()
+    try {
+        vpToken = createVerifiablePresentation(
+            holderDid,
+            holderKid,
+            holderJwk,
+            holderDid,
+            verifierDid,
+            listOf(vcToken),
+        )
+        println("\nSuccessfully created VP token: $vpToken")
+    } catch (e: Exception) {
+        println("\nCould not create VP token: ${e.message}")
     }
 }
