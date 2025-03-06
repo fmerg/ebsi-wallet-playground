@@ -10,15 +10,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.Serializable
 
-// Global config
-val EBSI_AGENT_ADRESS = "http://localhost:3000"
-
-// Use case config
-val holderDid = "did:ebsi:z23wc4CgC8oMXfDggCSz4C6B"
-val holderKid = "lk4lfYkT9imHJKH-cCqpX_qf6FZiP5RT48uuPfJLU9Y"
-val issuerDid = "did:ebsi:zwLFeK372v5tLJbU6U5xPoX"
-val verifierDid = "did:ebsi:z24acuDqgwY9qHjzEQ1r6YvF"
-
 
 // HTTP helpers --------------------------------------
 
@@ -41,7 +32,7 @@ suspend fun parseJsonResponse(resp: HttpResponse): JsonObject {
 }
 
 
-// PKI -----------------------------------------------
+// Trusted execution environmen (quasi) --------------
 
 fun loadPrivateKey(): JsonObject {
     // TODO: Properly plug to wallet
@@ -58,12 +49,49 @@ fun loadPrivateKey(): JsonObject {
 }
 
 
-// DID resolution ------------------------------------
+// EBSI Credential Flow operations (Basic API) -------
+
+// Global config
+val EBSI_AGENT_ADRESS = "http://localhost:3000"
+
+// Payload data types
 
 @Serializable
 data class DidResolutionPayload(
     val did: String,
 )
+
+@Serializable
+data class CredentialVerificationPayload(
+    val token: String,
+)
+
+@Serializable
+data class LocalIdentity(
+    val did: String,
+    val kid: String,
+    val jwk: JsonObject,
+)
+@Serializable
+data class PublicIdentity(
+    val did: String,
+    val kid: String? = null,
+)
+
+@Serializable
+data class VerifiablePresentationPayload(
+    val signer: LocalIdentity,
+    val holder: PublicIdentity,
+    val audience: PublicIdentity,
+    val credentials: List<String>,
+)
+
+@Serializable
+data class PresentationVerificationPayload(
+    val token: String,
+    val audience: PublicIdentity,
+)
+
 
 // Resolves the provided DID against the pilot EBSI Trust Registry. Throws
 // exception in any case that the DID does not resolve (invalid DID format,
@@ -93,13 +121,10 @@ suspend fun resolveDid(did: String): JsonObject {
 }
 
 
-// Credential verification ---------------------------
-
-@Serializable
-data class CredentialVerificationPayload(
-    val token: String,
-)
-
+// Verifies the provided VC token against the pilot EBSI Trust Registry and
+// retrieves the credential document. Throws exception in any case that the VC
+// token does not verify (Invalid JWT format, non-registered DID, connection
+// error etc.)
 suspend fun verifyCredential(token: String): JsonObject {
     val client = createHttpClient()
     val url = "$EBSI_AGENT_ADRESS/verify-vc"
@@ -125,29 +150,10 @@ suspend fun verifyCredential(token: String): JsonObject {
 }
 
 
-// Presentation creation ---------------------------
-
-@Serializable
-data class LocalIdentity(
-    val did: String,
-    val kid: String,
-    val jwk: JsonObject,
-)
-@Serializable
-data class PublicIdentity(
-    val did: String,
-    val kid: String? = null,
-)
-
-@Serializable
-data class VerifiablePresentationPayload(
-    val signer: LocalIdentity,
-    val holder: PublicIdentity,
-    val audience: PublicIdentity,
-    val credentials: List<String>,
-)
-
-
+// Creates a VP token against the pilot EBSI Trust Registry for the provided
+// credentials and identities. Throws exception in any case that the VP token
+// is not created (Invalid JWT format, non-registered DIDs, connection error
+// etc.)
 suspend fun createVerifiablePresentation(
     signerDid: String,
     signerKid: String,
@@ -189,14 +195,10 @@ suspend fun createVerifiablePresentation(
 }
 
 
-// Presentation verification -------------------------
-
-@Serializable
-data class PresentationVerificationPayload(
-    val token: String,
-    val audience: PublicIdentity,
-)
-
+// Verifies the provided VP token against the pilot EBSI Trust Registry and
+// retrieves the credential document. Throws exception in any case that the VC
+// token does not verify (Invalid JWT format, non-registered DID, connection
+// error etc.)
 suspend fun verifyPresentation(token: String, audienceDid: String): JsonObject {
     val client = createHttpClient()
     val url = "$EBSI_AGENT_ADRESS/verify-vp"
@@ -226,25 +228,35 @@ suspend fun verifyPresentation(token: String, audienceDid: String): JsonObject {
 
 
 suspend fun main() {
-    // DID resolution
-    val someDid = "did:ebsi:zwLFeK372v5tLJbU6U5xPoX"
+    val holderDid = "did:ebsi:z23wc4CgC8oMXfDggCSz4C6B"
+    val holderKid = "lk4lfYkT9imHJKH-cCqpX_qf6FZiP5RT48uuPfJLU9Y"
+    val issuerDid = "did:ebsi:zwLFeK372v5tLJbU6U5xPoX"
+    val verifierDid = "did:ebsi:z24acuDqgwY9qHjzEQ1r6YvF"
+
+
+    // Resolve issuer DID (Wallet does not need to do that)
     try {
-        val document = resolveDid(someDid)
-        println("\nSuccessfully resolved DID: $document")
+        val didDocument = resolveDid(issuerDid)
+        println("\nSuccessfully resolved DID: $didDocument")
     } catch (e: Exception) {
         println("\nCould not resolve DID: ${e.message}")
     }
 
-    // Credential verification
+    // Received credential token
     val vcToken = "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6ZWJzaTp6d0xGZUszNzJ2NXRMSmJVNlU1eFBvWCNsbXZiOGtLOHJfVnUwRktWanlvaXJMNURDXzdoVm9UZkk3d2Z4cGtTVVFZIiwidHlwIjoiSldUIn0.eyJpYXQiOjE3NDEyNjE3NTksImV4cCI6MTg5OTAyODE1OSwianRpIjoidXJuOnV1aWQ6NzFhOTE1NTctYzZhOS00MDU4LTg2MWEtZDNhMzkyNDUyM2RiIiwic3ViIjoiZGlkOmVic2k6ejIzd2M0Q2dDOG9NWGZEZ2dDU3o0QzZCIiwiaXNzIjoiZGlkOmVic2k6endMRmVLMzcydjV0TEpiVTZVNXhQb1giLCJuYmYiOjE3NDEyNjE3NTksInZjIjp7IkBjb250ZXh0IjpbImh0dHBzOi8vd3d3LnczLm9yZy8yMDE4L2NyZWRlbnRpYWxzL3YxIl0sImlkIjoidXJuOnV1aWQ6NzFhOTE1NTctYzZhOS00MDU4LTg2MWEtZDNhMzkyNDUyM2RiIiwidHlwZSI6WyJWZXJpZmlhYmxlQ3JlZGVudGlhbCIsIlZlcmlmaWFibGVBdHRlc3RhdGlvbiJdLCJpc3N1ZXIiOiJkaWQ6ZWJzaTp6d0xGZUszNzJ2NXRMSmJVNlU1eFBvWCIsImlzc3VhbmNlRGF0ZSI6IjIwMjUtMDMtMDZUMTE6NDk6MTkuOTI0WiIsImlzc3VlZCI6IjIwMjUtMDMtMDZUMTE6NDk6MTkuOTI0WiIsInZhbGlkRnJvbSI6IjIwMjUtMDMtMDZUMTE6NDk6MTkuOTI0WiIsInZhbGlkVW50aWwiOiIyMDM1LTAzLTA2VDExOjQ5OjE5LjkyNFoiLCJleHBpcmF0aW9uRGF0ZSI6IjIwMzAtMDMtMDZUMTE6NDk6MTkuOTI0WiIsImNyZWRlbnRpYWxTdWJqZWN0Ijp7ImlkIjoiZGlkOmVic2k6ejIzd2M0Q2dDOG9NWGZEZ2dDU3o0QzZCIiwiZmlyc3ROYW1lIjoiQW1uYSIsImZhbWlseU5hbWUiOiJFbGhhZGkiLCJwZXJzb25hbElkZW50aWZpZXIiOjY2Njk5OSwiZGF0ZU9mQmlydGgiOiIxOTg4LTA3LTI2IiwiYWdlT3ZlcjE4Ijp0cnVlLCJnZW5kZXIiOiJ1bnNwZWNpZmllZCJ9LCJjcmVkZW50aWFsU2NoZW1hIjp7ImlkIjoiaHR0cHM6Ly9hcGktcGlsb3QuZWJzaS5ldS90cnVzdGVkLXNjaGVtYXMtcmVnaXN0cnkvdjMvc2NoZW1hcy96RHBXR1VCZW5tcVh6dXJza3J5OU5zazZ2cTJSOHRoaDlWU2VvUnFndW95TUQiLCJ0eXBlIjoiRnVsbEpzb25TY2hlbWFWYWxpZGF0b3IyMDIxIn19fQ.kBUZWHW9khc1al-r7t-N41a_rckXbMYh1SASWD7BMRgQ51ZJvXc-L3NnLCB3mj84GB_WVhY9s2dtQLbnoVwdMw"
+
+    // Verify credential token
     try {
-        val document = verifyCredential(vcToken)
-        println("\nSuccessfully verified VC token: $document")
+        val vcDocument = verifyCredential(vcToken)
+        println("\nSuccessfully verified VC token: $vcDocument")
     } catch (e: Exception) {
         println("\nCould not verify VC token: ${e.message}")
     }
 
-    // Create verifiable presentation
+    // Display and store credential payload. Also save credential token for
+    // later usage
+
+    // Create verifiable presentation with the above saved credential token
     var vpToken = ""
     val holderJwk = loadPrivateKey()
     try {
@@ -254,15 +266,16 @@ suspend fun main() {
             holderJwk,
             holderDid,
             verifierDid,
-            listOf(vcToken),
+            listOf(vcToken),    // Could be more that one
         )
         println("\nSuccessfully created VP token: $vpToken")
     } catch (e: Exception) {
         println("\nCould not create VP token: ${e.message}")
     }
 
+    // Send presentation token to the verfier. The wallet job ends here
 
-    // Verify presentation
+    // Verify presentation (only for testing)
     try {
         val vpDocument = verifyPresentation(vpToken, verifierDid)
         println("\nSuccessfully verified VP token: $vpDocument")
